@@ -83,7 +83,7 @@ const UpdateAttendence = async(req,res)=> {
                     if (element.Rollnumber == data[i].rollnumber) {
                         try {
                             const student = await Student.findById(element._id); 
-                            student.record = data[i].status;
+                            student.record = data[i].record;
                             if(!student.Datepresent.includes(formattedDate)){
                                 student.Datepresent.push(formattedDate);
                             }
