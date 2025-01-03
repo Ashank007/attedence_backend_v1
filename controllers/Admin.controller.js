@@ -131,4 +131,26 @@ const getcsv = async(req,res)=>{
         res.status(500).json(new ApiError(false,error.message));
     }
 }
-export {RegisterAdmin,LoginAdmin,Addstudent,UpdateAttendence,getallstudents,getcsv};
+const DeleteStudent = async(req,res)=>{
+    try {
+        const admin = await req.admin.populate("Students");
+        if(!admin.Students){
+            return res.status(404).json(new ApiResponse(false,"No Students found"));
+        }
+        const rollnumber = req.body.rollnumber;  
+        let id;
+        for(let i=0;i<admin.Students.length;i++){
+            if(admin.Students[i].Rollnumber===rollnumber){
+                id = admin.Students[i]._id;
+                const student = await Student.findByIdAndDelete(id);
+                admin.Students.splice(i,1);
+                await admin.save();
+                return res.status(200).json(new ApiResponse(true,"Student deleted successfully"));
+            }
+        }
+        res.status(404).json(new ApiResponse(false,"Student Not Found"));
+    } catch (error) {
+        res.status(500).json(new ApiError(false,error.message));
+    }
+}
+export {RegisterAdmin,LoginAdmin,Addstudent,UpdateAttendence,getallstudents,getcsv,DeleteStudent};
