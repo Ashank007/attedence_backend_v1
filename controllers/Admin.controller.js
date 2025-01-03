@@ -69,37 +69,41 @@ const Addstudent = async(req,res)=>{
         res.status(500).json(new ApiError(false,error.message));
     }
 }
-const UpdateAttendence = async(req,res)=> {
+const UpdateAttendance = async (req, res) => {
     try {
         const formattedDate = moment().format('YYYY-MM-DD');
         const admin = await req.admin.populate("Students");
-        const {data} = req.body;
-        if(!data){
-            return res.status(400).json(new ApiResponse(false,"Data is required"));
+        const { data } = req.body;
+        if (!data || !Array.isArray(data)) {
+            return res.status(400).json(new ApiResponse(false, "Valid data is required"));
         }
-        for (let i = 0; i < admin.Students.length; i++) {
-            for (const element of admin.Students) {
-                if(data[i]!=null){
-                    if (element.Rollnumber == data[i].rollnumber) {
-                        try {
-                            const student = await Student.findById(element._id); 
-                            student.record = data[i].record;
-                            if(!student.Datepresent.includes(formattedDate)){
-                                student.Datepresent.push(formattedDate);
-                            }
-                            await student.save();
-                        } catch (error) {
-                            console.error('Error fetching student:', error);
-                        }
+        const dataMap = new Map(data.map(item => [item.rollnumber, item.record]));
+        const bulkOps = admin.Students
+            .filter(student => dataMap.has(student.Rollnumber))
+            .map(student => {
+                const newRecord = dataMap.get(student.Rollnumber);
+                const update = {
+                    $set: { record: newRecord },
+                    $addToSet: { Datepresent: formattedDate } 
+                };
+                return {
+                    updateOne: {
+                        filter: { _id: student._id },
+                        update
                     }
-                }
-            }
+                };
+            });
+        if (bulkOps.length === 0) {
+            return res.status(404).json(new ApiResponse(false, "No matching students found to update"));
         }
-        res.status(200).json(new ApiResponse(true,"Attendence Success"));
+        await Student.bulkWrite(bulkOps);
+        res.status(200).json(new ApiResponse(true, "Attendance updated successfully"));
     } catch (error) {
-        res.status(500).json(new ApiError(false,error.message));
+        console.error('Error updating attendance:', error);
+        res.status(500).json(new ApiError(false, error.message));
     }
-}
+};
+
 const getallstudents = async(req,res)=>{
     try {
         const admin = await req.admin.populate('Students');        
