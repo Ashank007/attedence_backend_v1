@@ -69,18 +69,31 @@ const Addstudent = async(req,res)=>{
         res.status(500).json(new ApiError(false,error.message));
     }
 }
-const UpdateAttendence = async(req,res)=>{
+const UpdateAttendence = async(req,res)=> {
     try {
         const formattedDate = moment().format('YYYY-MM-DD');
+        const admin = await req.admin.populate("Students");
         const {data} = req.body;
-        for(let i=0;i<data.length;i++)
-        {
-            const student = await Student.findOne({Rollnumber:data[i].rollnumber});
-            student.record = data[i].record;
-            if(!student.Datepresent.includes(formattedDate)){
-                student.Datepresent.push(formattedDate);
+        if(!data){
+            return res.status(400).json(new ApiResponse(false,"Data is required"));
+        }
+        for (let i = 0; i < admin.Students.length; i++) {
+            for (const element of admin.Students) {
+                if(data[i]!=null){
+                    if (element.Rollnumber == data[i].rollnumber) {
+                        try {
+                            const student = await Student.findById(element._id); 
+                            student.record = data[i].status;
+                            if(!student.Datepresent.includes(formattedDate)){
+                                student.Datepresent.push(formattedDate);
+                            }
+                            await student.save();
+                        } catch (error) {
+                            console.error('Error fetching student:', error);
+                        }
+                    }
+                }
             }
-            await student.save();
         }
         res.status(200).json(new ApiResponse(true,"Attendence Success"));
     } catch (error) {
@@ -153,4 +166,35 @@ const DeleteStudent = async(req,res)=>{
         res.status(500).json(new ApiError(false,error.message));
     }
 }
-export {RegisterAdmin,LoginAdmin,Addstudent,UpdateAttendence,getallstudents,getcsv,DeleteStudent};
+const MutlipleStudents = async(req,res)=>{
+    try {
+        const {rollnumber,students} = req.body;
+        if(!rollnumber || !students){
+            return res.status(400).json(new ApiResponse(false,"Rollnumber and Students array is required"));
+        }
+        if (rollnumber.length !== students.length) {
+            return res.status(400).json(new ApiResponse(false,"Rollnumber and Students array should of equal length"));
+        }
+        const admin = await req.admin;
+        if(!admin.Students){
+            return res.status(404).json(new ApiResponse(false,"No Students found"));
+        }
+        const documents = rollnumber.map((roll, index) => ({
+            rollnumber: roll,
+            student: students[index],
+        }));
+        for (let i = 0; i < documents.length; i++) {
+            const student = await Student.create({
+                Name: documents[i].student,
+                Rollnumber: documents[i].rollnumber,
+            })
+            let id = student._id.toString();
+            admin.Students.push(id)
+            await admin.save();
+          }
+        res.status(201).json(new ApiResponse(true,"Students Added Successfully"));
+    } catch (error) {
+        res.status(500).json(new ApiError(false,error.message));
+    }
+}
+export {RegisterAdmin,LoginAdmin,Addstudent,UpdateAttendence,getallstudents,getcsv,DeleteStudent,MutlipleStudents};
