@@ -5,7 +5,7 @@ import Admin from "../models/Admin.js"
 import bcrypt from "bcrypt"
 import GenerateToken from "../utils/Token.js"
 import moment from "moment"
-import { Parser } from "json2csv"
+import { Transform  } from "json2csv"
 const RegisterAdmin = async(req,res)=>{
     try {
         const {email,password} = req.body;
@@ -117,33 +117,37 @@ const getallstudents = async(req,res)=>{
         res.status(500).json(new ApiError(false,error.message));
     }
 }
-const getcsv = async(req,res)=>{
+const getcsv = async (req, res) => {
     try {
         const formattedDate = moment().format('DD-MM-YYYY');
         const admin = await req.admin.populate('Students');
-        if(!admin.Students){
-            return res.status(404).json(new ApiResponse(false,"No Students found"));
+
+        if (!admin.Students || admin.Students.length === 0) {
+            return res.status(404).json({ success: false, message: "No Students found" });
         }
-        let data = [];
-        for(let i=0;i<admin.Students.length;i++){
-            const record = admin.Students[i];
-            data.push({
-                Name:record.Name,
-                Rollnumber:record.Rollnumber,
-                Record:record.record
-            });
-        }
-        const json2csvParser = new Parser();
-        const csv = json2csvParser.parse(data);
-        const header = `(${formattedDate})\n\n`
-        const finalcsv = header+csv;
+
+        const fields = ['Name', 'Rollnumber', 'Record'];
+        const opts = { fields };
+
+        const transform = new Transform(opts);
         res.header('Content-Type', 'text/csv');
         res.attachment(`${formattedDate}.csv`);
-        res.send(finalcsv);
+        res.write(`(${formattedDate})\n\n`);
+
+        admin.Students.forEach((record) => {
+            const data = {
+                Name: record.Name,
+                Rollnumber: record.Rollnumber,
+                Record: record.record,
+            };
+            transform.write(data); 
+        });
+        transform.pipe(res); 
+        transform.end(); 
     } catch (error) {
-        res.status(500).json(new ApiError(false,error.message));
+        res.status(500).json({ success: false, message: error.message });
     }
-}
+};
 const DeleteStudent = async(req,res)=>{
     try {
         const admin = await req.admin.populate("Students");
